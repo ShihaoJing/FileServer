@@ -1,5 +1,5 @@
 # Files to compile that don't have a main() function
-CFILES = team support buffer
+CFILES = team support
 
 # Files to compile that do have a main() function
 TARGETS = Server
@@ -20,7 +20,7 @@ DEPS      = $(patsubst %, $(ODIR)/%.d,  $(CFILES) $(TARGETS))
 # Use g++
 CC = g++
 CFLAGS = -MMD -O2 -m$(BITS) -ggdb -D_GNU_SOURCE
-LDFLAGS = -m$(BITS) -ldl -lcrypto -lssl
+LDFLAGS = -m$(BITS) -ldl -lcrypto -lssl -lpthread
 
 # Best to be safe...
 .DEFAULT_GOAL = all

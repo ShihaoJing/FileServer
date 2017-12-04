@@ -1,5 +1,6 @@
 #include <unordered_map>
 #include <string>
+#include <mutex>
 #include "buffer.h"
 
 using namespace std;
@@ -35,6 +36,9 @@ class LRUCache {
     unordered_map<string, ListNode*> cache_map;
     int cap;
     int size;
+
+    mutex cache_lock;
+
 public:
     LRUCache(int capacity) 
         : cap(capacity), size(0), head(new ListNode("", nullptr)), tail(new ListNode("", nullptr))
@@ -50,6 +54,8 @@ public:
     }
     
     Buffer* get(string key) {
+        std::lock_guard<std::mutex> lock_guard(cache_lock);
+
         if (cap == 0) {
             return nullptr;
         }
@@ -62,7 +68,10 @@ public:
     }
     
     void put(string key, Buffer* value) {
+        std::lock_guard<std::mutex> lock_guard(cache_lock);
+        
         if (cap == 0) {
+            printf("0 cap LRU cache\n");
             return;
         }
         auto it = cache_map.find(key);
@@ -78,9 +87,14 @@ public:
                 cache_map.erase(LRU->key);
                 --size;
             }
+            printf("add a new item to LRU cache\n");
             ListNode *new_node = new ListNode(key, value);
             cache_map.insert({key, new_node});
             move_to_head(new_node);
         }
-     }
+    }
+    
+    int capacity() { return cap; }
+
+    int count() { return size; }
 };

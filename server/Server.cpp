@@ -13,11 +13,16 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <thread>
+#include <unordered_map>
+#include <mutex>
 #include "util.h"
 #include "support.h"
 #include "Server.h"
 #include "buffer.h"
 #include "LRU.h"
+
+using namespace std;
 
 int check_request_header(char *buf, char *method, char *file_name) {
 
@@ -61,6 +66,9 @@ void do_PUT(int fd, const char *file_name, int check_sum, LRUCache &lru) {
 	char buf[DEFAULT_BUFFER_SIZE];
 	char md5[MD5_DIGEST_LENGTH+1];
 
+	printf("begin inf loop\n");
+	while (1) {}
+
 	long file_size;
 	Buffer *file_buffer;
 
@@ -95,8 +103,13 @@ void do_PUT(int fd, const char *file_name, int check_sum, LRUCache &lru) {
 
 	lru.put(file_name, file_buffer);
 
+	printf("cached has %d items\n", lru.count());
+
 	if (check_sum && check_md5((unsigned char*)file_buffer->contents, file_size, (unsigned char*)md5) < 0) {
 		bad_request(fd, 6, "md5 check failed");
+		if (lru.capacity() == 0) {
+			buffer_free(file_buffer);
+		}
 		return;
 	}
 
@@ -111,6 +124,10 @@ void do_PUT(int fd, const char *file_name, int check_sum, LRUCache &lru) {
 		bzero(buf, DEFAULT_BUFFER_SIZE);
 		sprintf(buf, "%s\n", "OK");
 		send(fd, buf, sizeof(buf), 0);
+	}
+
+	if (lru.capacity() == 0) {
+		buffer_free(file_buffer);
 	}
 }
 
@@ -293,16 +310,30 @@ void handle_requests(int listenfd, void (*service_function)(int, int), int param
 		char *haddrp = inet_ntoa(clientaddr.sin_addr);
 		printf("server connected to %s (%s)\n", hp->h_name, haddrp);
 
+		if (multithread) {
+			std::thread t(service_function, connfd, param);
+			t.detach();
+		}
+		else {
+			service_function(connfd, param);
+			if(close(connfd) < 0)
+			{
+				die("Error in close(): ", strerror(errno));
+			}
+			printf("\n");
+		}
+
 		/* serve requests */
-		service_function(connfd, param);
+		//service_function(connfd, param);
+		
 
 		/* clean up, await new connection */
+		/*
 		if(close(connfd) < 0)
 		{
 			die("Error in close(): ", strerror(errno));
 		}
-
-		printf("\n");
+		*/
 	}
 }
 /*
@@ -315,6 +346,9 @@ void file_server(int connfd, int lru_size)
 	   files */
 
 	static LRUCache lru(lru_size);
+	static unordered_map<string, std::unique_ptr<std::mutex>> locks;
+	static mutex map_mutex;
+    
 
 	size_t bytes_received;
 	char buf[DEFAULT_BUFFER_SIZE];
@@ -332,6 +366,19 @@ void file_server(int connfd, int lru_size)
 
 	printf("method: %s, filename: %s\n", method, file_name);
 
+	std::mutex *file_mutex;
+
+	{
+		std::lock_guard<std::mutex> lock_guard(map_mutex);
+		auto it = locks.find(file_name);
+		if (it == locks.end()) {
+			it = locks.emplace(file_name, std::make_unique<std::mutex>()).first;
+		}
+		file_mutex = it->second.get();
+	}
+
+	std::lock_guard<std::mutex> lock_guard(*file_mutex);
+
 	if (strcmp(method, "PUT") == 0) {
 		do_PUT(connfd, file_name, 0, lru);
 	}
@@ -345,7 +392,12 @@ void file_server(int connfd, int lru_size)
 		do_GET(connfd, file_name, 1, lru);
 	}
 
-	
+	if(close(connfd) < 0)
+	{
+		die("Error in close(): ", strerror(errno));
+	}
+
+	printf("\n");
 }
 
 /*
@@ -355,9 +407,9 @@ int main(int argc, char **argv)
 {
 	/* for getopt */
 	long opt;
-	int  lru_size = 10;
+	int  lru_size = 3;
 	int  port     = 9000;
-	bool multithread = false;
+	bool multithread = true;
 
 	check_team(argv[0]);
 
@@ -371,7 +423,7 @@ int main(int argc, char **argv)
 			help(argv[0]); 
 			exit(0);
 			break;
-		case 'l': lru_size = atoi(argv[0]); break;
+		case 'l': lru_size = atoi(optarg); break;
 		case 'm': multithread = true;	break;
 		case 'p': port = atoi(optarg); break;
 		}

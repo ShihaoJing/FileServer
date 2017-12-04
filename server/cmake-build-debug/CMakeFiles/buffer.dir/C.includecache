@@ -1,0 +1,22 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/shihaojing/Project/cse303.p6/server/buffer.c
+buffer.h
+/home/shihaojing/Project/cse303.p6/server/buffer.h
+
+/home/shihaojing/Project/cse303.p6/server/buffer.h
+stdlib.h
+-
+string.h
+-
+stdarg.h
+-
+stdio.h
+-
+

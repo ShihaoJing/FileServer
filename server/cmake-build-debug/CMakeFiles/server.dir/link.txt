@@ -1,0 +1,1 @@
+/usr/bin/c++  -g   CMakeFiles/server.dir/Server.cpp.o CMakeFiles/server.dir/support.c.o CMakeFiles/server.dir/team.c.o  -o server -lssl -lcrypto -lpthread 
