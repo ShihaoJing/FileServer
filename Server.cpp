@@ -160,6 +160,8 @@ void do_GET(int fd, const char *file_name, int check_sum, LRUCache &lru) {
 		file_size = file_buffer->size();
 	}
 
+	printf("cached has %d items\n", lru.count());
+
 	generate_md5((const unsigned char*)file_buffer->get_c_str(), file_size, (unsigned char*)md5);
 	print_md5((unsigned char*)md5);
 
@@ -291,11 +293,6 @@ void handle_requests(int listenfd, void (*service_function)(int, int), int param
 		}
 		else {
 			service_function(connfd, param);
-			if(close(connfd) < 0)
-			{
-				die("Error in close(): ", strerror(errno));
-			}
-			printf("\n");
 		}
 
 		/* serve requests */

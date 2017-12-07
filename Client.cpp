@@ -136,7 +136,7 @@ void put_file(int fd, char *put_name, int check_sum, unsigned char *aes_key, uns
 	const char *request = request_buffer.get_c_str();
 
 	/* send request to the server, handling short counts */
-	size_t total_bytes      = strlen(request);
+	size_t total_bytes      = request_buffer.size();
 	size_t bytes_to_send    = total_bytes;
 	size_t bytes_sent       = 0;
 	

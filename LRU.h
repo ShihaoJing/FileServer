@@ -82,7 +82,6 @@ public:
                 cache_map.erase(LRU->key);
                 --size;
             }
-            printf("add a new item to LRU cache\n");
             ListNode *new_node = new ListNode(key, value);
             cache_map.insert({key, new_node});
             move_to_head(new_node);
