@@ -26,6 +26,8 @@
 #include "support.h"
 #include "Client.h"
 
+#define MAX_BUF_LENGTH 1024
+
 void help(char *progname)
 {
 	printf("Usage: %s [OPTIONS]\n", progname);
@@ -82,82 +84,6 @@ int connect_to_server(char *server, int port)
 }
 
 /*
- * echo_client() - this is dummy code to show how to read and write on a
- *                 socket when there can be short counts.  The code
- *                 implements an "echo" client.
- */
-void echo_client(int fd)
-{
-	// main loop
-	while(1)
-	{
-		/* set up a buffer, clear it, and read keyboard input */
-		const int MAXLINE = 8192;
-		char buf[MAXLINE];
-		bzero(buf, MAXLINE);
-		if(fgets(buf, MAXLINE, stdin) == NULL)
-		{
-			if(ferror(stdin))
-			{
-				die("fgets error", strerror(errno));
-			}
-			break;
-		}
-
-		/* send keystrokes to the server, handling short counts */
-		size_t n = strlen(buf);
-		size_t nremain = n;
-		ssize_t nsofar;
-		char *bufp = buf;
-		while(nremain > 0)
-		{
-			if((nsofar = write(fd, bufp, nremain)) <= 0)
-			{
-				if(errno != EINTR)
-				{
-					fprintf(stderr, "Write error: %s\n", strerror(errno));
-					exit(0);
-				}
-				nsofar = 0;
-			}
-			nremain -= nsofar;
-			bufp += nsofar;
-		}
-
-		/* read input back from socket (again, handle short counts)*/
-		bzero(buf, MAXLINE);
-		bufp = buf;
-		nremain = MAXLINE;
-		while(1)
-		{
-			if((nsofar = read(fd, bufp, nremain)) < 0)
-			{
-				if(errno != EINTR)
-				{
-					die("read error: ", strerror(errno));
-				}
-				continue;
-			}
-			/* in echo, server should never EOF */
-			if(nsofar == 0)
-			{
-				die("Server error: ", "received EOF");
-			}
-			bufp += nsofar;
-			nremain -= nsofar;
-			if(*(bufp-1) == '\n')
-			{
-				*bufp = 0;
-				break;
-			}
-		}
-
-		/* output the result */
-		printf("%s", buf);
-	}
-}
-
-/*
  * put_file() - send a file to the server accessible via the given socket fd
  */
 void put_file(int fd, char *put_name, int check_sum)
@@ -166,56 +92,38 @@ void put_file(int fd, char *put_name, int check_sum)
 
 	/* Open file, get size of file, and read content of file into a buffer*/
 
-	Buffer *request_buffer = buffer_alloc(DEFAULT_BUFFER_SIZE);
+	Buffer request_buffer;
+	char md5[MD5_DIGEST_LENGTH+1];
 
-	FILE *fp;
-	long file_size;
-	unsigned char *buffer;
-	size_t result;
+	size_t file_size;
+	char   *buffer;
 
-	if ((fp = fopen(put_name, "rb")) == NULL) {
-		perror("File Error: file does not exist\n");
-		exit(1);
+	file_size = read_file(put_name, &buffer);
+
+	if (file_size == 0) {
+		die("File Error", strerror(errno));
 	}
 
-	fseek(fp, 0, SEEK_END);
-	file_size = ftell(fp);
-	rewind(fp);
-
-	if ((buffer = (unsigned char*) malloc (sizeof(unsigned char)*file_size + 1)) == NULL) {
-		die("Memory Error: ", strerror(errno));
-	}
-
-	if ((result = fread(buffer, sizeof(unsigned char), file_size + 1, fp)) != file_size) {
-		die("File Error: ", strerror(errno));
-	}
-
-	buffer[file_size] = '\0';
-	
-	fclose(fp);
-
-	unsigned char *md5 = generate_md5(buffer, file_size);
+	generate_md5((unsigned char*)buffer, file_size, (unsigned char*)md5);
 
 	if (check_sum) {
-		buffer_appendf(request_buffer, "PUTC %s\n", put_name);
+		request_buffer.appendf("PUTC %s\n", put_name);
 	}
 	else {
-		buffer_appendf(request_buffer, "PUT %s\n", put_name);
+		request_buffer.appendf("PUT %s\n", put_name);
 	}
 	
-	buffer_appendf(request_buffer, "%lu\n", file_size);
+	request_buffer.appendf("%lu\n", file_size);
 
 	if (check_sum) {
-		buffer_appendf(request_buffer, "%s\n", md5);
-		print_md5(md5);
+		request_buffer.appendf("%s\n", md5);
+		print_md5((unsigned char*)md5);
 	}
 
-	buffer_appendf(request_buffer, "%s", buffer);
-
-	free(md5);
+	request_buffer.append(buffer, file_size);
 	free(buffer);
 	
-	char *request = request_buffer->contents;
+	const char *request = request_buffer.get_c_str();
 
 	/* send request to the server, handling short counts */
 	size_t total_bytes      = strlen(request);
@@ -233,14 +141,11 @@ void put_file(int fd, char *put_name, int check_sum)
 		request += bytes_sent;
 	}
 
-
-	buffer_free(request_buffer);
-
 	//printf("client send %lu bytes to server\n", total_bytes);
 
 	/* get response from server */
 
-	char read_buffer[DEFAULT_BUFFER_SIZE];
+	char read_buffer[MAX_BUF_LENGTH];
 	size_t bytes_received;
 
 	bytes_received = get_line(fd, read_buffer, sizeof(read_buffer));
@@ -255,11 +160,11 @@ void put_file(int fd, char *put_name, int check_sum)
 void get_file(int fd, char *get_name, char *save_name, int check_sum)
 {
 	/* TODO: implement a proper solution, instead of calling the echo() client */
-	char buf[DEFAULT_BUFFER_SIZE];
-	char status[DEFAULT_BUFFER_SIZE];
-	Buffer *file_buffer;
+	char buf[MAX_BUF_LENGTH];
+	char status[MAX_BUF_LENGTH];
+	Buffer file_buffer;
 	long file_size;
-	size_t bytes_sent;
+	
 	char md5[MD5_DIGEST_LENGTH+1];
 
 	if (check_sum) {
@@ -269,7 +174,7 @@ void get_file(int fd, char *get_name, char *save_name, int check_sum)
 		sprintf(buf, "GET %s\n", get_name);
 	}
 	
-	bytes_sent = write(fd, buf, sizeof(buf));
+	size_t bytes_sent = write(fd, buf, sizeof(buf));
 
 	size_t bytes_received = get_line(fd, buf, sizeof(buf));
 
@@ -283,7 +188,6 @@ void get_file(int fd, char *get_name, char *save_name, int check_sum)
 
 		bytes_received = get_line(fd, buf, sizeof(buf));
 		file_size = atol(buf);
-		file_buffer = buffer_alloc(file_size);
 		//printf("file size: %lu\n", file_size);
 
 		if (check_sum) {
@@ -294,32 +198,24 @@ void get_file(int fd, char *get_name, char *save_name, int check_sum)
 
 		int bytes_to_receive = file_size;
 		while (bytes_to_receive > 0) {
-			bytes_received = read(fd, buf, DEFAULT_BUFFER_SIZE);
+			bytes_received = read(fd, buf, MAX_BUF_LENGTH);
 
 			if (bytes_received == -1) {
 				die("Read Error: ", strerror(errno));
 			}
 
 			bytes_to_receive -= bytes_received;
-			buffer_append(file_buffer, buf, bytes_received);
+			file_buffer.append(buf, bytes_received);
 		}
 
-		if (check_sum && check_md5((unsigned char*)file_buffer->contents, file_size, (unsigned char*)md5) < 0) {
+		if (check_sum && check_md5((unsigned char*)file_buffer.get_c_str(), file_size, (unsigned char*)md5) < 0) {
 			die("Checksum Error: ", "check sum mismatch");
-			buffer_free(file_buffer);
-			return;
 		}
 
 		//printf("Received bytes: %d\n", file_buffer->bytes_used);
 
-		if(write_buffer_to_file(file_buffer->contents, file_buffer->bytes_used, save_name) < 0) {
-			printf("Error %s\n", "Failed to write to file");
-		}
-		else {
-			printf("File %s saved\n", save_name);
-		}
-
-		buffer_free(file_buffer);
+		write_file(file_buffer.get_c_str(), file_size, save_name);
+		printf("File %s saved\n", save_name);
 	}
 	else {
 		printf("Response: %s\n", buf);
@@ -382,9 +278,13 @@ int run(int argc, char **argv)
 	exit(0);
 }
 
-int main()
+int main(int argc, char **argv)
 {
-	char *buf = read_file("myfile.txt");
+	run(argc, argv);
+	/* char *buf;
+	int file_len = read_file("myfile.txt", &buf);
+
+	printf("msg len: %d\n", file_len);
 	printf("msg:\n%s\n", buf);
 
 	unsigned char *aes_key;
@@ -397,5 +297,26 @@ int main()
 		gen_key(&aes_key, &aes_iv);
 	}
 
-	EVP_encrypt((unsigned char*)buf, strlen(buf) + 1, aes_key, aes_iv);
+	char *enc_msg;
+
+	int enc_msg_len = EVP_encrypt((unsigned char*)buf, file_len, (unsigned char**)&enc_msg, aes_key, aes_iv);
+
+	printf("msg len: %d\n", enc_msg_len);
+
+	printf("encrypted msg:\n%s\n", enc_msg);
+	
+	write_buffer_to_file(enc_msg, enc_msg_len, "myfile.enc");
+
+
+
+	char *enc_msg_read;
+	int enc_msg_len_read = read_file("myfile.enc", &enc_msg_read);
+
+	char *dec_msg;
+	int dec_msg_len = EVP_decrypt((unsigned char*)enc_msg_read, enc_msg_len_read, (unsigned char**)&dec_msg, aes_key, aes_iv);
+
+
+	printf("decrypted msg:\n%s\n", dec_msg); */
+
+    
 }

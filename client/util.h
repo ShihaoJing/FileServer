@@ -47,68 +47,52 @@ void print_md5(unsigned char *digest) {
 	printf("md5: %s\n", md5string);
 }
 
-int write_buffer_to_file(char *buf, int size, const char *file_name) {
+void write_file(const char *buf, int size, const char *file_name) {
     FILE *fp = fopen(file_name, "wb");
-    if (fp == NULL) {
-        return -1;
-    }
-
-    if (fwrite(buf, 1, size, fp) != size) {
-        return -1;
-    }
-
+    fwrite(buf, 1, size, fp);
     fclose(fp);
 }
 
-char* read_file(const char *file_name) {
+size_t read_file(const char *file_name, char **buffer) {
+	/* result is a null-terminated string*/
+
 	FILE *fp;
-	long file_size;
-	char *buffer;
+	size_t file_size = 0;
 	size_t result;
 
 	if ((fp = fopen(file_name, "rb")) == NULL) {
-		perror("File Error: file does not exist\n");
-		exit(1);
+		return 0;
 	}
 
 	fseek(fp, 0, SEEK_END);
 	file_size = ftell(fp);
-	rewind(fp);
+	fseek(fp, 0, SEEK_SET);
 
-	if ((buffer = (char*) malloc (sizeof(char)*file_size + 1)) == NULL) {
-		printf("error read\n");
-		exit(0);
+	if ((*buffer = (char*) malloc(file_size)) == NULL) {
+		return 0;
 	}
 
-	if ((result = fread(buffer, sizeof(char), file_size + 1, fp)) != file_size) {
-		printf("error read\n");
-		exit(0);
+	if ((result = fread(*buffer, sizeof(char), file_size, fp)) != file_size) {
+		return 0;
 	}
-
-	buffer[file_size] = '\0';
 	
 	fclose(fp);
 
-	return buffer;
+	return file_size;
 }
 
-unsigned char* generate_md5(unsigned char *buf, int size) {
-	unsigned char *md5_result;
-	md5_result = (unsigned char*)malloc(sizeof(unsigned char) * (MD5_DIGEST_LENGTH+1));
-	MD5(buf, size, md5_result);
-	md5_result[MD5_DIGEST_LENGTH] = '\0';
-
-	return md5_result;
+void generate_md5(const unsigned char *buf, size_t size, unsigned char* md5) {
+	MD5(buf, size, md5);
+	md5[MD5_DIGEST_LENGTH] = '\0';
 }
 
-int check_md5(unsigned char *buf, int size, unsigned char *origin_md5) {
-	unsigned char *md5_result = generate_md5(buf, size);
+int check_md5(unsigned char *buf, size_t size, unsigned char *origin_md5) {
+	unsigned char md5[MD5_DIGEST_LENGTH+1];
+	generate_md5(buf, size, md5);
 	int result = 1;
 
-	if (strcmp((const char*)md5_result, (const char*)origin_md5) != 0) {
+	if (strcmp((const char*)md5, (const char*)origin_md5) != 0) {
 		result = -1;
 	}
-
-	free(md5_result);
 	return result;
 }

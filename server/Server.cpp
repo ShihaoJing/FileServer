@@ -22,6 +22,8 @@
 #include "buffer.h"
 #include "LRU.h"
 
+#define MAX_BUF_LENGTH 1024
+
 using namespace std;
 
 int check_request_header(char *buf, char *method, char *file_name) {
@@ -61,13 +63,20 @@ void bad_request(int fd, int err, const char *msg) {
 	send(fd, buf, sizeof(buf), 0);
 }
 
+void success_request(int fd, const char *msg) {
+	char buf[1024];
+
+	sprintf(buf, "%s\n", msg);
+	send(fd, buf, sizeof(buf), 0);
+}
+
 void do_PUT(int fd, const char *file_name, int check_sum, LRUCache &lru) {
 	size_t bytes_received;
-	char buf[DEFAULT_BUFFER_SIZE];
+	char buf[MAX_BUF_LENGTH];
 	char md5[MD5_DIGEST_LENGTH+1];
 
 	long file_size;
-	Buffer *file_buffer;
+	std::shared_ptr<Buffer> file_buffer = std::make_shared<Buffer>();
 
 	// bytes to receive
 	bytes_received = get_line(fd, buf, sizeof(buf));
@@ -76,7 +85,6 @@ void do_PUT(int fd, const char *file_name, int check_sum, LRUCache &lru) {
 		bad_request(fd, 1, "invalid file size");
 		return;
 	}
-	file_buffer = buffer_alloc(file_size);
 	//printf("file size: %lu\n", file_size);
 
 	// md5
@@ -88,119 +96,92 @@ void do_PUT(int fd, const char *file_name, int check_sum, LRUCache &lru) {
 
 	int bytes_to_receive = file_size;
 	while (bytes_to_receive > 0) {
-		bytes_received = read(fd, buf, DEFAULT_BUFFER_SIZE);
+		bytes_received = read(fd, buf, MAX_BUF_LENGTH);
 
 		if (bytes_received == -1) {
 			die("Read Error: ", strerror(errno));
 		}
 
 		bytes_to_receive -= bytes_received;
-		buffer_append(file_buffer, buf, bytes_received);
+		file_buffer->append(buf, bytes_received);
 	}
 
 	lru.put(file_name, file_buffer);
 
 	printf("cached has %d items\n", lru.count());
 
-	if (check_sum && check_md5((unsigned char*)file_buffer->contents, file_size, (unsigned char*)md5) < 0) {
+	if (check_sum && check_md5((unsigned char*)file_buffer->get_c_str(), file_size, (unsigned char*)md5) < 0) {
 		bad_request(fd, 6, "md5 check failed");
-		if (lru.capacity() == 0) {
-			buffer_free(file_buffer);
-		}
 		return;
 	}
 
 	//printf("Received bytes: %d\n", file_buffer->bytes_used);
 
-	if(write_buffer_to_file(file_buffer->contents, file_buffer->bytes_used, file_name) < 0) {
-		bad_request(fd, 2, "Failed to write to file");
+	write_file(file_buffer->get_c_str(), file_buffer->size(), file_name);
+	printf("File: %s saved\n", file_name);
+	
+	if (check_sum) {
+		success_request(fd, "OKC");
 	}
 	else {
-		printf("File: %s saved\n", file_name);
-		
-		bzero(buf, DEFAULT_BUFFER_SIZE);
-		sprintf(buf, "%s\n", "OK");
-		send(fd, buf, sizeof(buf), 0);
-	}
-
-	if (lru.capacity() == 0) {
-		buffer_free(file_buffer);
+		success_request(fd, "OK");
 	}
 }
 
 void do_GET(int fd, const char *file_name, int check_sum, LRUCache &lru) {
 
-	Buffer *response_buffer = buffer_alloc(DEFAULT_BUFFER_SIZE);
-	Buffer *file_buffer;
-	char *tmp_buffer;
+	Buffer response_buffer;
 	long file_size;
-	unsigned char *md5;
+	char md5[MD5_DIGEST_LENGTH+1];
 
-	file_buffer = lru.get(file_name);
+	std::shared_ptr<Buffer> file_buffer = lru.get(file_name);
 
 	if (file_buffer == nullptr) {
 		printf("Cache Miss\n");
 
-		FILE *fp;
+		file_buffer = std::make_shared<Buffer>();
 
-		if ((fp = fopen(file_name, "rb")) == NULL) {
-			bad_request(fd, 5, "File doesn't exist in server");
+		char *buffer;
+
+		file_size = read_file(file_name, &buffer);
+
+		if (file_size == 0) {
+			bad_request(fd, 1, "file doesn't exit");
 			return;
 		}
-		size_t result;
 
-		fseek(fp, 0, SEEK_END);
-		file_size = ftell(fp);
-		rewind(fp);
+		file_buffer->append(buffer, file_size);
+		free(buffer);
 
-		if ((tmp_buffer = (char*) malloc (sizeof(char)*file_size + 1)) == NULL) {
-			die("Memory Error: ", strerror(errno));
-		}
-
-		if ((result = fread(tmp_buffer, sizeof(char), file_size + 1, fp)) != file_size) {
-			die("File Error: ", strerror(errno));
-		}
-
-		tmp_buffer[file_size] = '\0';
-
-		md5 = generate_md5((unsigned char*)tmp_buffer, file_size);
-		fclose(fp);
+		lru.put(file_name, file_buffer);
 	}
 	else {
 		printf("Cache Hit\n");
-		file_size = file_buffer->bytes_used;
-		md5 = generate_md5((unsigned char*)file_buffer->contents, file_size);
+		file_size = file_buffer->size();
 	}
 
-
-	if (check_sum) {
-		buffer_appendf(response_buffer, "OKC %s\n", file_name);
-	}
-	else {
-		buffer_appendf(response_buffer, "OK %s\n", file_name);
-	}
-
-	buffer_appendf(response_buffer, "%lu\n", file_size);
+	generate_md5((const unsigned char*)file_buffer->get_c_str(), file_size, (unsigned char*)md5);
+	print_md5((unsigned char*)md5);
 
 	if (check_sum) {
-		buffer_appendf(response_buffer, "%s\n", md5);
-		print_md5(md5);
-	}
-
-	if (file_buffer == nullptr) {
-		buffer_appendf(response_buffer, "%s", tmp_buffer);
-		free(tmp_buffer);
+		response_buffer.appendf("OKC %s\n", file_name);
 	}
 	else {
-		buffer_appendf(response_buffer, "%s", file_buffer->contents);
+		response_buffer.appendf("OKC %s\n", file_name);
 	}
 
-	free(md5);
+	response_buffer.appendf("%lu\n", file_size);
+
+	if (check_sum) {
+		response_buffer.appendf("%s\n", md5);
+	}
 	
-	char *response = response_buffer->contents;
+	response_buffer.append(file_buffer->get_c_str(), file_size);
+	
+	const char *response = response_buffer.get_c_str();
 
 	/* send request to the server, handling short counts */
-	size_t total_bytes      = strlen(response);
+	size_t total_bytes      = response_buffer.size();
 	size_t bytes_to_send    = total_bytes;
 	size_t bytes_sent       = 0;
 	
@@ -214,9 +195,6 @@ void do_GET(int fd, const char *file_name, int check_sum, LRUCache &lru) {
 		bytes_to_send -= bytes_sent;
 		response += bytes_sent;
 	}
-
-
-	buffer_free(response_buffer);
 }
 
 void help(char *progname)
@@ -348,10 +326,10 @@ void file_server(int connfd, int lru_size)
     
 
 	size_t bytes_received;
-	char buf[DEFAULT_BUFFER_SIZE];
+	char buf[MAX_BUF_LENGTH];
 
-	char method[255];
-	char file_name[255];
+	char method[MAX_BUF_LENGTH];
+	char file_name[MAX_BUF_LENGTH];
 
 	// PUT or GET
 	bytes_received = get_line(connfd, buf, sizeof(buf));
@@ -406,7 +384,7 @@ int main(int argc, char **argv)
 	long opt;
 	int  lru_size = 3;
 	int  port     = 9000;
-	bool multithread = true;
+	bool multithread = false;
 
 	check_team(argv[0]);
 

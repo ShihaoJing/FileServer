@@ -13,6 +13,8 @@ string
 -
 mutex
 -
+memory
+-
 buffer.h
 /home/shihaojing/Project/cse303.p6/server/buffer.h
 
@@ -101,7 +103,7 @@ support.h
 /home/shihaojing/Project/cse303.p6/server/buffer.h
 stdlib.h
 -
-string.h
+string
 -
 stdarg.h
 -
@@ -118,22 +120,6 @@ errno.h
 fcntl.h
 -
 netdb.h
--
-netinet/in.h
--
-openssl/bio.h
--
-openssl/err.h
--
-openssl/evp.h
--
-openssl/md5.h
--
-openssl/pem.h
--
-openssl/rsa.h
--
-openssl/ssl.h
 -
 stddef.h
 -
@@ -152,5 +138,17 @@ sys/stat.h
 sys/types.h
 -
 unistd.h
+-
+openssl/evp.h
+-
+openssl/pem.h
+-
+openssl/aes.h
+-
+openssl/err.h
+-
+openssl/md5.h
+-
+openssl/rand.h
 -
 

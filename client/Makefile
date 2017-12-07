@@ -1,5 +1,5 @@
 # Files to compile that don't have a main() function
-CFILES = team support buffer
+CFILES = team support
 
 # Files to compile that do have a main() function
 TARGETS = Client

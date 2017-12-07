@@ -7,12 +7,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "base64.h"
-
 #define FAILURE(msg) printf("Encryption Error: %s\n", msg); \
                 exit(1);
 
-#define AES_KEYLEN 8
+#define AES_KEYLEN 32 /* AES Key 256 bit */
 
 void open_key_file(unsigned char **aes_key, unsigned char **aes_iv) {
     size_t read_len;
@@ -105,22 +103,20 @@ void gen_key(unsigned char **aes_key, unsigned char **aes_iv) {
     fclose(fp);
 }
 
-void EVP_encrypt(unsigned char *msg, int msg_len, unsigned char *aes_key, unsigned char *aes_iv) {
+int EVP_encrypt(unsigned char *msg, int msg_len, unsigned char **enc_msg,  unsigned char *aes_key, unsigned char *aes_iv) {
 
     EVP_CIPHER_CTX *aesEncryptCtx = EVP_CIPHER_CTX_new();
-    EVP_CIPHER_CTX *aesDecryptCtx = EVP_CIPHER_CTX_new();
 
     // Always a good idea to check if malloc failed
-    if(aesEncryptCtx == NULL || aesDecryptCtx == NULL) {
+    if(aesEncryptCtx == NULL) {
         FAILURE("mallocation failed");
 	}
     
     int block_len = 0;
 
     int enc_msg_len = 0;
-    unsigned char *enc_msg = NULL;
 
-    enc_msg = (unsigned char*)malloc(msg_len + AES_BLOCK_SIZE);
+    *enc_msg = (unsigned char*)malloc(msg_len + AES_BLOCK_SIZE);
     if(enc_msg == NULL)  {
         FAILURE("mallocation failed");
     }
@@ -129,13 +125,13 @@ void EVP_encrypt(unsigned char *msg, int msg_len, unsigned char *aes_key, unsign
         FAILURE("aes enc contex init failed");
     }
 
-    if(!EVP_EncryptUpdate(aesEncryptCtx, enc_msg, &block_len, msg, msg_len)) {
+    if(!EVP_EncryptUpdate(aesEncryptCtx, *enc_msg, &block_len, msg, msg_len)) {
         FAILURE("enc update failed");
     }
 
     enc_msg_len += block_len;
 
-    if(!EVP_EncryptFinal_ex(aesEncryptCtx, enc_msg + enc_msg_len, &block_len)) {
+    if(!EVP_EncryptFinal_ex(aesEncryptCtx, *enc_msg + enc_msg_len, &block_len)) {
         FAILURE("enc final failed");
     }
 
@@ -143,23 +139,22 @@ void EVP_encrypt(unsigned char *msg, int msg_len, unsigned char *aes_key, unsign
 
     EVP_CIPHER_CTX_cleanup(aesEncryptCtx);
 
-    printf("encrypted msg:\n%s\n", enc_msg);
+    return enc_msg_len;
+}
 
-    char *b64_enc_msg = base64Encode(enc_msg, enc_msg_len);
+int EVP_decrypt(unsigned char *enc_msg, int enc_msg_len, unsigned char **dec_msg,  unsigned char *aes_key, unsigned char *aes_iv) { 
 
-    printf("b64 encoded encrypted msg:\n%s\n", b64_enc_msg);
-
-    unsigned char *buffer;
-    int len = base64Decode(b64_enc_msg, strlen(b64_enc_msg), &buffer);
-
-    printf("b64 decoded encrypted msg:\n%s\n", buffer);
-
-    enc_msg = buffer;
-
+    int block_len;
     int dec_msg_len = 0;
-    unsigned char *dec_msg;
 
-    dec_msg = (unsigned char*)malloc(enc_msg_len);
+
+    EVP_CIPHER_CTX *aesDecryptCtx = EVP_CIPHER_CTX_new();
+    // Always a good idea to check if malloc failed
+    if(aesDecryptCtx == NULL) {
+        FAILURE("mallocation failed");
+	}
+
+    *dec_msg = (unsigned char*)malloc(enc_msg_len);
     if (dec_msg == NULL) {
         FAILURE("mallocation failed");
     }
@@ -168,13 +163,13 @@ void EVP_encrypt(unsigned char *msg, int msg_len, unsigned char *aes_key, unsign
         FAILURE("dec contex init failed");
     }
 
-    if(!EVP_DecryptUpdate(aesDecryptCtx, dec_msg, &block_len, enc_msg, enc_msg_len)) {
+    if(!EVP_DecryptUpdate(aesDecryptCtx, *dec_msg, &block_len, enc_msg, enc_msg_len)) {
         FAILURE("dec update failed");
     }
 
     dec_msg_len += block_len;
 
-    if(!EVP_DecryptFinal_ex(aesDecryptCtx, dec_msg + dec_msg_len, &block_len)) {
+    if(!EVP_DecryptFinal_ex(aesDecryptCtx, *dec_msg + dec_msg_len, &block_len)) {
         FAILURE("dec final failed");
     }
 
@@ -182,5 +177,5 @@ void EVP_encrypt(unsigned char *msg, int msg_len, unsigned char *aes_key, unsign
 
     EVP_CIPHER_CTX_cleanup(aesDecryptCtx);
 
-    printf("decrypted msg:\n%s\n", dec_msg);
+    return dec_msg_len;
 }

@@ -2,26 +2,54 @@
 #define BUFFER_H
 
 #include <stdlib.h>
-#include <string.h>
+#include <string>
 #include <stdarg.h>
 #include <stdio.h>
 
-#define DEFAULT_BUFFER_SIZE 1024
+class Buffer {
+private:
+    std::string data;
+    size_t count;
+public:
+    Buffer() : count(0) { }
 
-struct Buffer {
-    char *contents;
-    int bytes_used;
-    int total_size;
+    void append(const char *s, size_t n) {
+        data.append(s, n);
+        count += n;
+    }
+
+    void append(const char *s) {
+        data.append(s);
+        count += strlen(s);
+    }
+
+    void appendf(const char *format, ...) {
+        char *tmp = NULL;
+        int bytes_written, status;
+
+        va_list argp;
+        va_start(argp, format);
+
+        bytes_written = vasprintf(&tmp, format, argp);
+        if (bytes_written < 0) {
+            printf("format append failed\n");
+            exit(1);
+        }
+
+        va_end(argp);
+
+        append(tmp, bytes_written);
+
+        delete tmp;
+    }
+
+    const char* get_c_str() {
+        return data.c_str();
+    }
+
+    size_t size() {
+        return count;
+    }
 };
-
-typedef struct Buffer Buffer;
-
-Buffer * buffer_alloc(int initial_size);
-int buffer_strlen(Buffer *buf);
-void buffer_free(Buffer *buf);
-int buffer_append(Buffer *buf, char *append, int length);
-int buffer_appendf(Buffer *buf, const char *format, ...);
-int buffer_nappendf(Buffer *buf, size_t length, const char *format, ...);
-char *buffer_to_s(Buffer *buf);
 
 #endif

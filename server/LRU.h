@@ -1,21 +1,17 @@
 #include <unordered_map>
 #include <string>
 #include <mutex>
+#include <memory>
 #include "buffer.h"
-
-using namespace std;
 
 class LRUCache {
     struct ListNode {
-        string key;
-        Buffer *value;
+        std::string key;
+        std::shared_ptr<Buffer> value;
         ListNode *pre;
         ListNode *next;
-        ListNode(string key, Buffer *value) 
+        ListNode(std::string key, std::shared_ptr<Buffer> value) 
             : key(key), value(value), pre(nullptr), next(nullptr) { }
-        ~ListNode() {
-            buffer_free(value);
-        }
     };
     
     void move_to_head(ListNode *node) {
@@ -33,11 +29,11 @@ class LRUCache {
     
     ListNode *head;
     ListNode *tail;
-    unordered_map<string, ListNode*> cache_map;
+    std::unordered_map<std::string, ListNode*> cache_map;
     int cap;
     int size;
 
-    mutex cache_lock;
+    std::mutex cache_lock;
 
 public:
     LRUCache(int capacity) 
@@ -53,7 +49,7 @@ public:
         delete tail;
     }
     
-    Buffer* get(string key) {
+    std::shared_ptr<Buffer> get(std::string key) {
         std::lock_guard<std::mutex> lock_guard(cache_lock);
 
         if (cap == 0) {
@@ -67,7 +63,7 @@ public:
         return it->second->value;
     }
     
-    void put(string key, Buffer* value) {
+    void put(std::string key, std::shared_ptr<Buffer> value) {
         std::lock_guard<std::mutex> lock_guard(cache_lock);
         
         if (cap == 0) {
@@ -76,7 +72,6 @@ public:
         }
         auto it = cache_map.find(key);
         if (it != cache_map.end()) {
-            buffer_free(it->second->value);
             it->second->value = value;
             remove_from_list(it->second);
             move_to_head(it->second);
