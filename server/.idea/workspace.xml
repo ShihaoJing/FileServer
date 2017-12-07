@@ -57,8 +57,8 @@
       <file leaf-file-name="Server.cpp" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/Server.cpp">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="441">
-              <caret line="347" column="4" lean-forward="false" selection-start-line="347" selection-start-column="4" selection-end-line="347" selection-end-column="4" />
+            <state relative-caret-position="495">
+              <caret line="350" column="4" lean-forward="false" selection-start-line="350" selection-start-column="4" selection-end-line="350" selection-end-column="4" />
               <folding>
                 <element signature="e#0#22#0" expanded="true" />
               </folding>
@@ -167,12 +167,12 @@
       <updated>1512422591726</updated>
       <workItem from="1512422593025" duration="73000" />
       <workItem from="1512422667179" duration="2529000" />
-      <workItem from="1512427951003" duration="626000" />
+      <workItem from="1512427951003" duration="1218000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="3228000" />
+    <option name="totallyTimeSpent" value="3820000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="23" width="1857" height="1014" extended-state="6" />
@@ -219,7 +219,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
           <url>file://$PROJECT_DIR$/Server.cpp</url>
-          <line>344</line>
+          <line>347</line>
           <option name="timeStamp" value="2" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
@@ -330,8 +330,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/Server.cpp">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="441">
-          <caret line="347" column="4" lean-forward="false" selection-start-line="347" selection-start-column="4" selection-end-line="347" selection-end-column="4" />
+        <state relative-caret-position="495">
+          <caret line="350" column="4" lean-forward="false" selection-start-line="350" selection-start-column="4" selection-end-line="350" selection-end-column="4" />
           <folding>
             <element signature="e#0#22#0" expanded="true" />
           </folding>

@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <assert.h>
+#include "crypto.h"
 #include "util.h"
 #include "buffer.h"
 #include "support.h"
@@ -36,11 +37,13 @@ void help(char *progname)
 	printf("  -S    for GETs, name to use when saving file locally\n");
 }
 
+
 void die(const char *msg1, const char *msg2)
 {
 	fprintf(stderr, "%s, %s\n", msg1, msg2);
 	exit(0);
 }
+
 
 /*
  * connect_to_server() - open a connection to the server specified by the
@@ -326,7 +329,7 @@ void get_file(int fd, char *get_name, char *save_name, int check_sum)
 /*
  * main() - parse command line, open a socket, transfer a file
  */
-int main(int argc, char **argv)
+int run(int argc, char **argv)
 {
 	/* for getopt */
 	long  opt;
@@ -377,4 +380,22 @@ int main(int argc, char **argv)
 		die("Close error: ", strerror(errno));
 	}
 	exit(0);
+}
+
+int main()
+{
+	char *buf = read_file("myfile.txt");
+	printf("msg:\n%s\n", buf);
+
+	unsigned char *aes_key;
+	unsigned char *aes_iv;
+
+	open_key_file(&aes_key, &aes_iv);
+
+	if (aes_key == NULL || aes_iv == NULL) {
+		printf("no key file found, generating a new pair of key...\n");
+		gen_key(&aes_key, &aes_iv);
+	}
+
+	EVP_encrypt((unsigned char*)buf, strlen(buf) + 1, aes_key, aes_iv);
 }

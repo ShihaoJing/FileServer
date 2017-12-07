@@ -66,9 +66,6 @@ void do_PUT(int fd, const char *file_name, int check_sum, LRUCache &lru) {
 	char buf[DEFAULT_BUFFER_SIZE];
 	char md5[MD5_DIGEST_LENGTH+1];
 
-	printf("begin inf loop\n");
-	while (1) {}
-
 	long file_size;
 	Buffer *file_buffer;
 

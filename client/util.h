@@ -2,14 +2,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
-#include <netinet/in.h>
-#include <openssl/bio.h>
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/md5.h>
-#include <openssl/pem.h>
-#include <openssl/rsa.h>
-#include <openssl/ssl.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +11,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/aes.h>
+#include <openssl/err.h>
+#include <openssl/md5.h>
+#include <openssl/rand.h>
 
 int get_line(int sock, char *buf, int size) {
 	int i = 0;
@@ -41,6 +39,7 @@ int get_line(int sock, char *buf, int size) {
 	return i;
 }
 
+
 void print_md5(unsigned char *digest) {
 	char md5string[33];
 	for(int i = 0; i < 16; ++i)
@@ -59,6 +58,38 @@ int write_buffer_to_file(char *buf, int size, const char *file_name) {
     }
 
     fclose(fp);
+}
+
+char* read_file(const char *file_name) {
+	FILE *fp;
+	long file_size;
+	char *buffer;
+	size_t result;
+
+	if ((fp = fopen(file_name, "rb")) == NULL) {
+		perror("File Error: file does not exist\n");
+		exit(1);
+	}
+
+	fseek(fp, 0, SEEK_END);
+	file_size = ftell(fp);
+	rewind(fp);
+
+	if ((buffer = (char*) malloc (sizeof(char)*file_size + 1)) == NULL) {
+		printf("error read\n");
+		exit(0);
+	}
+
+	if ((result = fread(buffer, sizeof(char), file_size + 1, fp)) != file_size) {
+		printf("error read\n");
+		exit(0);
+	}
+
+	buffer[file_size] = '\0';
+	
+	fclose(fp);
+
+	return buffer;
 }
 
 unsigned char* generate_md5(unsigned char *buf, int size) {

@@ -41,6 +41,14 @@ int get_line(int sock, char *buf, int size) {
 	return i;
 }
 
+void encrypt(char *buf, int size) {
+
+}
+
+void decrypt(char *buf, int size) {
+
+}
+
 void print_md5(unsigned char *digest) {
 	char md5string[33];
 	for(int i = 0; i < 16; ++i)
@@ -59,6 +67,34 @@ int write_buffer_to_file(char *buf, int size, const char *file_name) {
     }
 
     fclose(fp);
+}
+
+char* read_file(const char *file_name) {
+	FILE *fp;
+	long file_size;
+	unsigned char *buffer;
+	size_t result;
+
+	if ((fp = fopen(put_name, "rb")) == NULL) {
+		perror("File Error: file does not exist\n");
+		exit(1);
+	}
+
+	fseek(fp, 0, SEEK_END);
+	file_size = ftell(fp);
+	rewind(fp);
+
+	if ((buffer = (unsigned char*) malloc (sizeof(unsigned char)*file_size + 1)) == NULL) {
+		die("Memory Error: ", strerror(errno));
+	}
+
+	if ((result = fread(buffer, sizeof(unsigned char), file_size + 1, fp)) != file_size) {
+		die("File Error: ", strerror(errno));
+	}
+
+	buffer[file_size] = '\0';
+	
+	fclose(fp);
 }
 
 unsigned char* generate_md5(unsigned char *buf, int size) {
